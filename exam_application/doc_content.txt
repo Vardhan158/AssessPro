@@ -1,0 +1,279 @@
+﻿Secure Online Interview Assessment Platform
+Requirements, Application Flow, Security Controls, Proctoring, Reporting and Implementation Roadmap
+
+Reference document | Version 1.0 | Prepared 14 October 2026
+
+Purpose: a consolidated planning and verification reference for designing a secure, fair, auditable online MCQ assessment platform for first-round interviews.
+
+Document Guide
+1. Executive Summary
+2. Goals, Scope and Non-Goals
+3. Industry Research and Reference Products
+4. Roles, Permissions and Access Control
+5. Candidate Registration and Excel Import
+6. Assessment Lifecycle and Student Journey
+7. Question Bank, Randomisation and Scoring
+8. Proctoring, Browser Restrictions and Incident Review
+9. Results, Dashboard and Excel Exports
+10. Security and Privacy Requirements
+11. Recommended Application Architecture and Data Model
+12. Failure Scenarios and Expected Behaviour
+13. Testing Strategy and Acceptance Criteria
+14. Implementation Roadmap
+15. Production-Readiness Checklist
+16. Decisions Required Before Development
+17. References and Source of Truth
+
+1. Executive Summary
+This document consolidates the proposed requirements and industry-informed recommendations for an online first-round interview assessment platform. The intended users are administrators and registered students. The system will support controlled student eligibility, Excel-based candidate imports, assessment scheduling, a question bank containing 50 or more MCQ sets, monitored test sessions, server-side evaluation, incident review, and administrator reporting.
+The core design principle is that the application must be secure, auditable, fair, and reliableΓÇönot merely functional. Browser-side controls can help detect certain events, but they cannot guarantee that cheating is impossible or fully lock a student's operating system. Stronger device restrictions generally require a dedicated secure browser or a specialist proctoring solution.
+Recommended delivery sequence: requirements and threat modelling ΓåÆ identity and candidate management ΓåÆ assessment and question bank ΓåÆ attempt engine ΓåÆ monitoring and incident review ΓåÆ reporting and security verification. Development should begin only after assessment rules, privacy decisions, and acceptance criteria are agreed.
+
+2. Goals, Scope and Non-Goals
+2.1 Goals
+Allow only pre-approved students to access the relevant assessment.
+Allow administrators to import candidates from Excel and add missed candidates under controlled, auditable rules.
+Provide explicit assessment states and administrator-controlled availability.
+Assign approved MCQ sets fairly and protect question content and answer keys.
+Support reliable autosave, timing, submission, scoring and result publication.
+Capture relevant integrity events and support evidence-based administrative review.
+Export authorised results to Excel without exposing credentials, tokens or unnecessary personal data.
+Use verifiable application security requirements and test them before real assessments.
+2.2 In scope
+Student and administrator web interfaces; authentication and authorisation; candidate import; question-bank management; assessment lifecycle; attempts and scoring; browser event monitoring; camera/microphone permission workflow; incident review; dashboards and exports; application-level security and privacy requirements; functional, failure and security testing.
+2.3 Not assumed or promised
+No claim that browser-only monitoring prevents all cheating.
+No automatic finding of misconduct solely from a tab-switch event.
+No facial recognition, emotion analysis or AI-based cheating verdict unless separately justified, assessed for privacy and bias, and approved.
+No particular programming stack is prescribed until the organisation's existing skills and constraints are known.
+No legal compliance certification is implied by following this document. Legal requirements and commencement dates must be checked for the actual deployment.
+
+3. Industry Research and Reference Products
+Established assessment products provide useful design references, but their features and configurations differ. The following products and standards are references for planning, not proof that all providers implement identical controls.
+3.1 Market references
+
+These products should be evaluated against the organisation's actual candidate devices, operating systems, support capacity, privacy requirements and budget. A product feature should not be assumed to exist in a particular configuration without verifying the provider's current documentation.
+3.2 Standards and guidance
+OWASP Application Security Verification Standard (ASVS) 5.0.0: use as a testable application security requirements catalogue.
+OWASP Top 10:2025: use as a high-level awareness and risk-prioritisation reference, not a complete test plan.
+NIST SP 800-63 Revision 4: reference for digital identity, authentication and lifecycle considerations.
+OWASP File Upload Cheat Sheet: reference for safe Excel/file import handling.
+OWASP Logging Cheat Sheet: reference for security event logging.
+MDN getUserMedia documentation: browser media access requires permission and a secure context such as HTTPS.
+India DPDP Act/Rules and official commencement information: review with qualified counsel for applicable obligations and effective dates.
+
+4. Roles, Permissions and Access Control
+4.1 Administrator
+Create and configure assessments, access windows, duration, attempt policy and marking rules.
+Import candidates, review errors, add missed students and manage assessment eligibility.
+Create, validate, version and publish question sets and answer keys.
+Open, pause and close assessments according to a defined lifecycle.
+Monitor participation and review flagged incidents.
+Publish results and export authorised reports.
+View audit records and document approved corrections.
+4.2 Student
+Log in and view their own registered details and assessment status.
+Complete the exam-readiness and supported-device checks.
+Start only an assessment for which they are eligible and which is open.
+Answer questions, navigate as allowed, and receive save-state feedback.
+Submit the test or be submitted automatically according to the approved policy.
+View only their own permitted results and submission confirmation.
+4.3 Non-negotiable access rules
+Every protected backend/API operation must verify identity, role, resource ownership, assessment eligibility and current state as appropriate.
+Hiding or disabling a frontend button is not access control.
+Students must not change their role, eligibility, deadline, attempt status, answer key or score.
+Administrative actions affecting active assessments, eligibility, question versions or results must be auditable.
+Use stronger authentication for administrators, including MFA where practical.
+Do not expose answer keys, other students' data, administrative routes or sensitive incident evidence to student accounts.
+
+5. Candidate Registration and Excel Import
+5.1 Recommended columns
+
+5.2 Import workflow
+Administrator selects the assessment and uploads an explicitly permitted spreadsheet format.
+Validate file extension, actual file content, file size, row count, expected columns and malformed content; do not trust the client-supplied MIME type alone.
+Preview total rows, valid rows, duplicates, missing fields, conflicting identifiers and invalid rows.
+Allow the administrator to download or inspect a row-level error report and correct the source file.
+Require explicit confirmation before committing valid records.
+Create an import batch with uploader, timestamp, assessment association, counts and outcome.
+Never silently overwrite an existing student identity or eligibility record.
+Provide a manual Add Student workflow that applies the same validation and records the reason, administrator and timestamp.
+5.3 Account creation
+Do not use a student's name, phone number or college name as their password.
+Use administrator-issued accounts with a one-time activation flow or temporary credentials that must be changed on first use.
+If phone verification is used, use expiring, rate-limited one-time codes and avoid revealing whether an account exists.
+Use secure password hashing, login throttling, safe account recovery, secure session cookies and session invalidation on logout.
+Collect only the data needed for registration, assessment integrity and legitimate reporting.
+
+6. Assessment Lifecycle and Student Journey
+6.1 Assessment states
+
+Assessment state and individual attempt state are separate. Closing an assessment must not silently delete, corrupt or ambiguously alter attempts already in progress.
+6.2 End-to-end workflow
+Administrator creates the assessment, dates, time window, duration, maximum marks, attempt limit, result-release policy and integrity policy.
+Administrator imports and validates the candidate list and confirms eligibility.
+Administrator validates the question bank, paper blueprint, marking rules and answer-key version.
+Administrator previews the assessment and publishes it in a scheduled or closed state.
+Student logs in; server verifies account status and eligibility.
+Dashboard displays the assessment state; Start Test remains unavailable until the student is eligible and the assessment is open.
+Student reviews instructions, privacy notice, permitted behaviour, support process and consequences of rule violations.
+Readiness screen checks supported browser, camera/microphone permission if required, connectivity and any required secure-browser configuration.
+Server atomically creates one attempt, assigns the paper version, records start time and calculates the authoritative deadline.
+Student answers questions; responses are saved incrementally and save status is visible.
+Server validates submission or timeout and finalises the attempt idempotently.
+Server scores the saved responses using the correct protected answer-key version.
+Student receives confirmation and, if enabled, the score. Administrator receives results and incident-review information.
+6.3 Attempt states
+
+
+7. Question Bank, Randomisation and Scoring
+7.1 Question data
+Each question should have a stable ID, version, topic, difficulty, marks, question text, options, correct answer, status and optional explanation.
+Paper templates should define topic coverage, question count, difficulty mix, duration and total marks.
+Published paper versions and assigned attempts should be immutable or versioned so that historical results can be reproduced.
+Do not send answer keys or private scoring metadata to the browser before authorised release.
+7.2 Fixed 50 sets versus generated papers
+The organisation may retain 50 pre-authored sets. For a stronger long-term design, manage questions in a bank and generate papers from an approved blueprint. Either approach requires comparable coverage and difficulty.
+Randomly assign approved sets or generate from controlled pools; record the exact assigned set and order.
+Shuffle question and option order only where it does not change meaning; preserve the option mapping needed to score correctly.
+Review difficulty and topic coverage. Randomisation alone does not make papers equally difficult.
+Pilot sets and use item-level accuracy analysis to find ambiguous, defective or unexpectedly difficult questions.
+Define marks for correct, incorrect and unanswered responses, negative marking if any, and rounding rules before the exam.
+7.3 Recommended default marking policy
+
+The backend must calculate the score from authoritative saved answers. Never accept a final score calculated or supplied by the browser as authoritative.
+
+8. Proctoring, Browser Restrictions and Incident Review
+8.1 Standard browser limitations
+A normal browser application can observe selected browser events, such as when the exam document becomes hidden or fullscreen is exited. These signals are imperfect and do not prove intent. A webpage cannot reliably lock the whole operating system or establish that a student is not using another device.
+8.2 Two deployment models
+
+Recommendation: keep the application architecture capable of integrating a secure-browser or proctoring solution. Choose the enforcement model only after testing the candidates' actual devices and agreeing privacy and support requirements.
+8.3 Suggested event handling
+
+8.4 Avoid automatic accusations
+Do not label a student a culprit based only on a tab switch or monitoring event. Use neutral terms such as flagged attempt, suspected integrity incident and review outcome. Record raw events separately from decisions. An authorised reviewer should consider the published rule, evidence and possible technical explanation.
+8.5 Camera and microphone privacy
+State whether media is used only for device readiness, live monitoring, recording or automated analysis.
+Obtain browser permission and use HTTPS for normal browser media capture.
+Show clear monitoring status and explain when access begins and ends.
+Limit access to recordings and incident evidence to authorised reviewers.
+Define retention and deletion periods, permitted purposes, access logs and the support/appeal process.
+Provide a documented accommodation and technical-failure process.
+Do not introduce facial recognition, emotion analysis or automated misconduct verdicts without a separate necessity, privacy, accuracy and fairness assessment.
+
+9. Results, Dashboard and Excel Exports
+9.1 Dashboard metrics
+Registered and eligible students; started attempts; submissions; active attempts; timeouts; flagged attempts; completion rate; score distribution; average score; question-level accuracy; incident review status.
+9.2 Candidate results report
+Student ID, name, branch and college; assessment and paper version; start and submission timestamps; attempt status; score, maximum marks and percentage; correct/incorrect/unanswered counts; incident count and review status where the viewer is authorised.
+9.3 Integrity and audit report
+Browser visibility/fullscreen events; media interruptions; session start/resume/submission events; changes to assessment settings; question-bank and answer-key version changes; reviewer, decision, reason and resolution time.
+9.4 Export requirements
+Generate exports from authoritative server-side records and restrict export permission.
+Log who exported which assessment/report and when.
+Use stable column names and separate worksheets where useful: Candidate_Results, Assessment_Summary, Incident_Review and Export_Metadata.
+Protect against spreadsheet formula injection in user-controlled text fields.
+Exclude passwords, session tokens, unnecessary personal information and raw recordings from ordinary results workbooks.
+Make clear whether an export is provisional or final and include an export timestamp.
+
+10. Security and Privacy Requirements
+10.1 Application security baseline
+
+10.2 Data protection
+Student records, phone numbers, assessment results and any audio/video evidence are personal data. Define the purpose and lawful basis for processing, provide an appropriate notice, minimise collection, control access, set retention/deletion periods, protect data and document how student requests or complaints are handled. Have qualified counsel review the Digital Personal Data Protection Act, Rules, applicable exemptions and the official enforcement timeline for the actual deployment. Do not assume all provisions take effect on the same date.
+10.3 Audit records
+For important actions, record the actor, action, target resource, timestamp, outcome and reason where relevant. Restrict who can modify or delete audit records. Keep incident evidence and final review decisions separate. Avoid recording secrets or excessive personal data in logs.
+
+11. Recommended Application Architecture and Data Model
+11.1 Logical architecture
+Student portal and administrator dashboard: presentation only; never the authority for permissions, timing or scoring.
+Backend API/security layer: authentication, authorisation, validation, rate limiting and state transitions.
+Application database: users, student records, eligibility, assessments, questions, attempts, answers and results.
+Audit/incident records: security events, admin actions and review outcomes.
+Restricted file storage: imports, exports and optional monitoring evidence.
+Optional secure-browser/proctoring integration: isolated integration boundary with explicit data and privacy contracts.
+11.2 Suggested database entities
+
+11.3 Data integrity rules
+Use unique identifiers and foreign-key relationships where supported.
+Prevent duplicate active attempts according to the approved policy.
+Use transactions for operations that must succeed or fail together.
+Keep published question versions immutable for historical attempts.
+Make final submission idempotent so retries do not create duplicate results.
+Treat browser state as untrusted; reconcile with authoritative server records.
+
+12. Failure Scenarios and Expected Behaviour
+
+
+13. Testing Strategy and Acceptance Criteria
+13.1 Functional tests
+Admin can import valid rows and see accurate row-level errors.
+Ineligible students cannot start an assessment even if they call the API directly.
+Assessment states and access windows behave correctly.
+Question assignment, option shuffling and scoring are reproducible.
+Autosave, resume, timeout and submission work as specified.
+Result visibility follows the release policy.
+Exports contain accurate data and only authorised fields.
+13.2 Security tests
+Test horizontal and vertical privilege escalation, IDOR/BOLA, session weaknesses, rate-limit bypass and direct API access.
+Test injection and output encoding, CSRF where applicable, unsafe file upload, spreadsheet formula injection and sensitive-data exposure.
+Verify answer keys and unreleased results cannot be retrieved through APIs, browser source or client storage.
+Verify admin changes and incident decisions create appropriate audit records.
+Use OWASP ASVS 5.0.0 as a tailored, versioned verification checklist; use OWASP Top 10:2025 for broad risk awareness.
+13.3 Reliability and fairness tests
+Test refresh, reconnect, repeated requests, race conditions, server errors and database interruptions around submission.
+Test exam timing across client clock changes and browser suspension.
+Test media permissions, device incompatibility and legitimate interruptions.
+Run realistic simulations with representative student devices and expected peak concurrency.
+Review false-positive rates and provide a documented incident review process.
+13.4 Release gate
+Do not use the system for real high-stakes interview decisions until critical security findings are resolved, scoring is verified, failure recovery is demonstrated, privacy and monitoring rules are approved, and the responsible owner signs off on the acceptance checklist.
+
+14. Implementation Roadmap
+
+Build and test each module against measurable acceptance criteria. Avoid implementing monitoring features before the assessment lifecycle and submission integrity are dependable.
+
+15. Production-Readiness Checklist
+Identity and permissions: role separation, server-side access checks, secure sessions, admin MFA where practical.
+Assessment integrity: server-side eligibility, availability, timing, assignment, scoring and submission.
+Question security: protected answer keys, versioned papers and controlled regrading.
+Monitoring and fairness: documented events, privacy notice, recovery policy, review process and accommodations.
+Imports and exports: row validation, conflict handling, formula-injection protection and access logging.
+Data protection: purpose limitation, data minimisation, access control, retention/deletion and counsel review.
+Reliability: autosave, reconnect, timeout, duplicate submission and partial-failure tests.
+Security verification: tailored ASVS checklist, OWASP risk review and independent penetration test.
+Sign-off: named business owner, assessment owner and technical/security reviewer approve release.
+A checklist item should be marked complete only when evidence existsΓÇöfor example, a test result, configuration review, documented decision or approved policy. This document is a planning reference, not a security certification.
+
+16. Decisions Required Before Development
+Will candidates use their own devices or organisation-controlled computers?
+Is a normal browser acceptable, or is a dedicated secure browser mandatory?
+Will camera/microphone be used for readiness checks, live monitoring, recording or a combination?
+Will tab switching trigger a warning, a review flag, or termination after a defined threshold?
+What is the assessment duration, access window, attempt limit and late-entry policy?
+Can students resume after a network outage or device restart? If so, under what rules?
+What marks are awarded for incorrect answers? Is negative marking required?
+When will students see scores, and will they see question-level answers or only total marks?
+Who can review incidents, approve score corrections and export personal data?
+What retention period applies to student records, logs and any recordings?
+What accessibility accommodations and technical support arrangements are required?
+What is the expected candidate count and peak concurrent usage?
+What existing technology stack and internal skills should guide implementation?
+These are policy and product decisions. They should be resolved explicitly rather than left to individual developers to infer.
+
+17. References and Source of Truth
+The following official sources were consulted for the standards and browser/privacy guidance in this reference. Product documentation can change; verify the current version and the exact feature configuration before implementation.
+OWASP Application Security Verification Standard (ASVS), version 5.0.0 ΓÇö https://owasp.org/www-project-application-security-verification-standard/
+OWASP Top 10:2025 ΓÇö https://owasp.org/Top10/2025/
+NIST SP 800-63 Digital Identity Guidelines, Revision 4 ΓÇö https://www.nist.gov/identity-access-management/projects/nist-special-publication-800-63-digital-identity-guidelines
+MDN: MediaDevices.getUserMedia() ΓÇö https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+OWASP File Upload Cheat Sheet ΓÇö https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html
+OWASP Logging Cheat Sheet ΓÇö https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
+Safe Exam Browser ΓÇö https://safeexambrowser.org/
+HackerRank test proctoring documentation ΓÇö https://support.hackerrank.com/articles/1079706165-proctoring-hackerrank-tests
+Mercer | Mettl remote proctoring ΓÇö https://mettl.com/en/online-remote-proctoring
+Respondus LockDown Browser ΓÇö https://web.respondus.com/he/lockdownbrowser/
+MeitY: Digital Personal Data Protection Rules, 2025 ΓÇö https://www.meity.gov.in/dpdp-rules-2025
+Source-of-truth principle: use official standards and vendor documentation for requirements and product behaviour; verify actual implementation through tests and evidence. Do not treat a product marketing page or a checklist alone as proof that this application is secure.
+
