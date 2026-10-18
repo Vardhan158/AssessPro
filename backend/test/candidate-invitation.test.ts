@@ -1,4 +1,4 @@
-import assert from 'node:assert';
+in backend read all folders and files and make the complete .env credentials entire in one .env fileimport assert from 'node:assert';
 import { test } from 'node:test';
 import { generateActivationToken, verifyActivationToken } from '../src/services/auth.service';
 import { sendActivationEmail } from '../src/services/email.service';
