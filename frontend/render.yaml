@@ -1,0 +1,8 @@
+type: static
+name: assesspro-frontend
+buildCommand: npm install && npm run build
+publishDir: dist
+routes:
+  - type: rewrite
+    source: /*
+    destination: /index.html

@@ -10,3 +10,13 @@ services:
         value: production
       - key: PORT
         value: "5000"
+
+  - type: static
+    name: assesspro-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
