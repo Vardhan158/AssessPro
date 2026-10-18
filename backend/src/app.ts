@@ -10,7 +10,21 @@ import adminRoutes from './routes/admin.routes';
 
 const app = express();
 app.use(cors({
-  origin: env.NODE_ENV === 'production' ? env.CLIENT_ORIGIN : true,
+  origin: (requestOrigin, callback) => {
+    if (!requestOrigin) return callback(null, true);
+    if (
+      requestOrigin.includes('localhost') ||
+      requestOrigin.includes('onrender.com') ||
+      requestOrigin.includes('vercel.app') ||
+      requestOrigin.includes('netlify.app')
+    ) {
+      return callback(null, true);
+    }
+    if (env.CLIENT_ORIGIN && env.CLIENT_ORIGIN.split(',').some(allowed => requestOrigin.includes(allowed.trim()))) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
 app.use((_req, res, next) => {
