@@ -7,8 +7,8 @@ import {
   requestActivationReissue,
   refreshSession,
   verifyResetToken,
-  resetPassword
-  ,revokeRefreshSession
+  resetPassword,
+  revokeRefreshSession
 } from '../services/auth.service';
 import { authenticate } from '../middleware/authenticate';
 import { loginRateLimiter, forgotPasswordRateLimiter } from '../middleware/rateLimiter';
@@ -16,11 +16,12 @@ import { env } from '../config/env';
 
 const router = Router();
 
+const isProduction = env.NODE_ENV === 'production' || process.env.RENDER === 'true' || process.env.NODE_ENV === 'test';
+
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
-  // Cross-site refresh cookies require Secure and SameSite=None in production.
-  sameSite: (env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
+  secure: isProduction,
+  sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
   maxAge: 7 * 24 * 3600 * 1000, // 7 days
   path: '/'
 };
