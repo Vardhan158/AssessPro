@@ -9,10 +9,10 @@ import studentRoutes from './routes/student.routes';
 import adminRoutes from './routes/admin.routes';
 
 const app = express();
-const allowedOrigins = env.CLIENT_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean);
+const allowedOrigins = new Set(env.CLIENT_ORIGIN.split(',').map(origin => origin.trim().replace(/\/$/, '')).filter(Boolean));
 app.use(cors({
   origin: (requestOrigin, callback) => {
-    if (!requestOrigin || allowedOrigins.includes(requestOrigin)) return callback(null, true);
+    if (!requestOrigin || allowedOrigins.has(requestOrigin)) return callback(null, true);
     return callback(new Error('CORS origin not allowed'));
   },
   credentials: true
