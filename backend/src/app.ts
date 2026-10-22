@@ -9,11 +9,16 @@ import studentRoutes from './routes/student.routes';
 import adminRoutes from './routes/admin.routes';
 
 const app = express();
-const allowedOrigins = new Set(env.CLIENT_ORIGIN.split(',').map(origin => origin.trim().replace(/\/$/, '')).filter(Boolean));
+// Explicitly permit the deployed frontend as well as additional configured origins.
+const allowedOrigins = new Set([
+  'https://assesspro-1-i07n.onrender.com',
+  ...env.CLIENT_ORIGIN.split(',')
+].map(origin => origin.trim().replace(/\/$/, '')).filter(Boolean));
 app.use(cors({
   origin: (requestOrigin, callback) => {
     if (!requestOrigin || allowedOrigins.has(requestOrigin)) return callback(null, true);
-    return callback(new Error('CORS origin not allowed'));
+    // Reject disallowed browser origins without raising an application 500.
+    return callback(null, false);
   },
   credentials: true
 }));
