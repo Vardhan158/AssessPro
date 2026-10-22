@@ -124,6 +124,32 @@ export default function AdminDashboard() {
   const [bankDifficultyFilter, setBankDifficultyFilter] = useState("ALL");
   const [bankSearch, setBankSearch] = useState("");
   const wizardSelectedMarks = wizardSelectedBankQuestions.reduce((sum, id) => sum + Number(bankQuestions.find((q) => q._id === id)?.marks || 0), 0);
+  const effectiveTotalMarks = wizardSelectedBankQuestions.length > 0 ? wizardSelectedMarks : (Number(newTotalQuestions) || 50);
+
+  const openCreateModal = () => {
+    const now = new Date();
+    const nextWeek = new Date(Date.now() + 86400 * 1000 * 7);
+    const toLocalISO = (d) => {
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    setWizardStep(1);
+    setNewTitle("");
+    setNewCode("");
+    setNewDescription("");
+    setNewDuration(60);
+    setNewTotalQuestions(50);
+    setNewPassingMarks(30);
+    setNewNegativeMarking(0);
+    setNewAllowedAttempts(1);
+    setNewOpenAt(toLocalISO(now));
+    setNewCloseAt(toLocalISO(nextWeek));
+    setWizardSelectedBankQuestions([]);
+    setWizardSelectedStudentIds([]);
+    setAssessmentFeedback(null);
+    setShowCreateModal(true);
+  };
 
   // New Question Form
   const [qText, setQText] = useState("");
@@ -229,28 +255,60 @@ export default function AdminDashboard() {
   const handleFinalWizardSubmit = async (status = "DRAFT") => {
     setAssessmentFeedback(null);
     if (!newTitle.trim() || !newCode.trim()) {
-      setAssessmentFeedback({ type: "error", text: "Assessment Name and Code are required." });
+      setAssessmentFeedback({ type: "error", text: "Assessment Title and Code are required." });
       setWizardStep(1);
       return;
     }
-    if (!Number.isInteger(newTotalQuestions) || newTotalQuestions < 1 || newTotalQuestions > bankQuestions.length) return setAssessmentFeedback({ type: "error", text: `Total Questions must be between 1 and the ${bankQuestions.length} eligible questions available.` });
-    if (wizardSelectedBankQuestions.length !== newTotalQuestions) return setAssessmentFeedback({ type: "error", text: `Select exactly ${newTotalQuestions} questions before saving.` });
-    if (newDuration <= 0) return setAssessmentFeedback({ type: "error", text: "Duration must be greater than zero." });
-    if (newPassingMarks > wizardSelectedMarks) return setAssessmentFeedback({ type: "error", text: "Passing Marks cannot exceed Total Marks." });
-    if (newAllowedAttempts < 1) return setAssessmentFeedback({ type: "error", text: "Maximum Allowed Attempts must be at least 1." });
-    if (!newOpenAt || !newCloseAt || new Date(newCloseAt) <= new Date(newOpenAt)) return setAssessmentFeedback({ type: "error", text: "End Schedule must be later than Start Schedule." });
+
+    const parsedTotalQ = Number(newTotalQuestions) || 0;
+    const parsedDuration = Number(newDuration) || 0;
+    const parsedPassing = Number(newPassingMarks) || 0;
+    const parsedNegative = Number(newNegativeMarking) || 0;
+    const parsedAttempts = Number(newAllowedAttempts) || 0;
+    const finalTotalMarks = wizardSelectedBankQuestions.length > 0 ? wizardSelectedMarks : effectiveTotalMarks;
+
+    if (parsedTotalQ < 1) {
+      setAssessmentFeedback({ type: "error", text: "Total Questions must be at least 1." });
+      setWizardStep(2);
+      return;
+    }
+    if (bankQuestions.length > 0 && bankQuestions.length >= parsedTotalQ && wizardSelectedBankQuestions.length !== parsedTotalQ) {
+      setAssessmentFeedback({ type: "error", text: `Select exactly ${parsedTotalQ} questions from the Question Bank before saving (currently ${wizardSelectedBankQuestions.length} selected).` });
+      setWizardStep(3);
+      return;
+    }
+    if (parsedDuration <= 0) {
+      setAssessmentFeedback({ type: "error", text: "Duration must be greater than zero." });
+      setWizardStep(2);
+      return;
+    }
+    if (parsedPassing > finalTotalMarks) {
+      setAssessmentFeedback({ type: "error", text: `Passing Marks (${parsedPassing}) cannot exceed Total Marks (${finalTotalMarks}).` });
+      setWizardStep(2);
+      return;
+    }
+    if (parsedAttempts < 1) {
+      setAssessmentFeedback({ type: "error", text: "Maximum Allowed Attempts must be at least 1." });
+      setWizardStep(2);
+      return;
+    }
+    if (!newOpenAt || !newCloseAt || new Date(newCloseAt) <= new Date(newOpenAt)) {
+      setAssessmentFeedback({ type: "error", text: "End Schedule must be later than Start Schedule." });
+      setWizardStep(2);
+      return;
+    }
 
     try {
       const createRes = await api.post("/admin/assessments", {
         title: newTitle.trim(),
         code: newCode.trim().toUpperCase(),
         description: newDescription.trim(),
-        durationMinutes: newDuration,
-        totalQuestions: newTotalQuestions,
-        totalMarks: wizardSelectedMarks,
-        passingMarks: newPassingMarks,
-        negativeMarking: newNegativeMarking,
-        allowedAttempts: newAllowedAttempts,
+        durationMinutes: parsedDuration,
+        totalQuestions: parsedTotalQ,
+        totalMarks: finalTotalMarks,
+        passingMarks: parsedPassing,
+        negativeMarking: parsedNegative,
+        allowedAttempts: parsedAttempts,
         allowedEligibilityTags: ["ALL"],
         openAt: new Date(newOpenAt),
         closeAt: new Date(newCloseAt),
@@ -817,7 +875,7 @@ export default function AdminDashboard() {
               <span>Refresh</span>
             </button>
 
-            <button onClick={() => { setShowCreateModal(true); setWizardStep(1); }} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 hover:from-indigo-500 hover:to-violet-500 transition-all cursor-pointer">
+            <button onClick={openCreateModal} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 hover:from-indigo-500 hover:to-violet-500 transition-all cursor-pointer">
               <PlusCircle className="h-4 w-4" />
               <span>Create Exam</span>
             </button>
@@ -885,7 +943,7 @@ export default function AdminDashboard() {
             </button>
 
             <button
-              onClick={() => { setShowCreateModal(true); setWizardStep(1); }}
+              onClick={openCreateModal}
               className="flex items-center justify-center gap-2 rounded-xl bg-violet-600/20 border border-violet-500/30 p-3 text-xs font-bold text-violet-300 hover:bg-violet-600/30 transition-all cursor-pointer"
             >
               <PlusCircle className="h-4 w-4 text-violet-400" />
@@ -1527,7 +1585,10 @@ export default function AdminDashboard() {
                       type="number"
                       min="1"
                       value={newTotalQuestions}
-                      onChange={(e) => setNewTotalQuestions(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewTotalQuestions(val === "" ? "" : Math.max(1, parseInt(val, 10) || 0));
+                      }}
                       className="w-full rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-slate-100 outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -1538,7 +1599,10 @@ export default function AdminDashboard() {
                       type="number"
                       min="1"
                       value={newDuration}
-                      onChange={(e) => setNewDuration(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewDuration(val === "" ? "" : Math.max(1, parseInt(val, 10) || 0));
+                      }}
                       className="w-full rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-slate-100 outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -1548,9 +1612,9 @@ export default function AdminDashboard() {
                     <input
                       type="number"
                       min="1"
-                      value={wizardSelectedMarks}
+                      value={effectiveTotalMarks}
                       readOnly
-                      className="w-full rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-slate-100 outline-none focus:border-indigo-500"
+                      className="w-full rounded-xl border border-slate-800 bg-slate-900/60 p-2.5 text-slate-300 outline-none cursor-not-allowed font-semibold"
                     />
                   </div>
 
@@ -1558,9 +1622,12 @@ export default function AdminDashboard() {
                     <label className="block font-bold text-slate-300 mb-1">Passing Marks</label>
                     <input
                       type="number"
-                      min="1"
+                      min="0"
                       value={newPassingMarks}
-                      onChange={(e) => setNewPassingMarks(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewPassingMarks(val === "" ? "" : Math.max(0, parseInt(val, 10) || 0));
+                      }}
                       className="w-full rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-slate-100 outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -1572,7 +1639,10 @@ export default function AdminDashboard() {
                       step="0.25"
                       min="0"
                       value={newNegativeMarking}
-                      onChange={(e) => setNewNegativeMarking(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewNegativeMarking(val === "" ? "" : Math.max(0, parseFloat(val) || 0));
+                      }}
                       className="w-full rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-slate-100 outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -1583,7 +1653,10 @@ export default function AdminDashboard() {
                       type="number"
                       min="1"
                       value={newAllowedAttempts}
-                      onChange={(e) => setNewAllowedAttempts(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewAllowedAttempts(val === "" ? "" : Math.max(1, parseInt(val, 10) || 0));
+                      }}
                       className="w-full rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-slate-100 outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -1617,7 +1690,30 @@ export default function AdminDashboard() {
               <div className="space-y-3 text-xs">
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-white">Select questions from Central Question Bank for this paper</p>
-                  <span className="font-bold text-cyan-300">{wizardSelectedBankQuestions.length} Selected</span>
+                  <div className="flex items-center gap-3">
+                    {bankQuestions.length > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const targetCount = Number(newTotalQuestions) || bankQuestions.length;
+                            setWizardSelectedBankQuestions(bankQuestions.slice(0, targetCount).map((q) => q._id));
+                          }}
+                          className="font-bold text-indigo-400 hover:underline cursor-pointer"
+                        >
+                          Auto-Select Top {Number(newTotalQuestions) || bankQuestions.length}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWizardSelectedBankQuestions([])}
+                          className="font-bold text-slate-400 hover:underline cursor-pointer"
+                        >
+                          Deselect All
+                        </button>
+                      </>
+                    )}
+                    <span className="font-bold text-cyan-300">{wizardSelectedBankQuestions.length} Selected</span>
+                  </div>
                 </div>
 
                 <div className="max-h-60 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950 divide-y divide-slate-800">
@@ -1655,6 +1751,7 @@ export default function AdminDashboard() {
                   <p className="font-bold text-white">Select eligible students for this assessment</p>
                   <div className="flex items-center gap-3">
                     <button
+                      type="button"
                       onClick={() => {
                         if (wizardSelectedStudentIds.length === candidates.length) setWizardSelectedStudentIds([]);
                         else setWizardSelectedStudentIds(candidates.map(c => c.id));
@@ -1702,9 +1799,9 @@ export default function AdminDashboard() {
 
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-900 font-mono text-[11px]">
                     <div>Duration: <strong className="text-white">{newDuration} Mins</strong></div>
-                    <div>Total Marks: <strong className="text-white">{wizardSelectedMarks}</strong></div>
+                    <div>Total Marks: <strong className="text-white">{effectiveTotalMarks}</strong></div>
                     <div>Passing Marks: <strong className="text-white">{newPassingMarks}</strong></div>
-                    <div>Negative Marking: <strong className="text-white">{newNegativeMarking > 0 ? `-${newNegativeMarking}` : "No"}</strong></div>
+                    <div>Negative Marking: <strong className="text-white">{Number(newNegativeMarking) > 0 ? `-${newNegativeMarking}` : "No"}</strong></div>
                     <div>Questions: <strong className="text-cyan-300">{wizardSelectedBankQuestions.length} Selected</strong></div>
                     <div>Assigned: <strong className="text-emerald-300">{wizardSelectedStudentIds.length} Students</strong></div>
                     <div>Maximum Attempts: <strong className="text-white">{newAllowedAttempts}</strong></div>
@@ -1737,18 +1834,38 @@ export default function AdminDashboard() {
                     type="button"
                     onClick={() => {
                       if (wizardStep === 1 && (!newTitle.trim() || !newCode.trim())) {
-                        return alert("Title and Code are required.");
+                        return setAssessmentFeedback({ type: "error", text: "Assessment Title and Code are required." });
                       }
                       if (wizardStep === 2) {
-                        if (!Number.isInteger(newTotalQuestions) || newTotalQuestions < 1 || newTotalQuestions > bankQuestions.length) {
-                          return setAssessmentFeedback({ type: "error", text: `Total Questions must be between 1 and the ${bankQuestions.length} eligible questions available.` });
+                        const parsedTotalQ = Number(newTotalQuestions) || 0;
+                        const parsedDuration = Number(newDuration) || 0;
+                        const parsedPassing = Number(newPassingMarks) || 0;
+                        const parsedAttempts = Number(newAllowedAttempts) || 0;
+
+                        if (parsedTotalQ < 1) {
+                          return setAssessmentFeedback({ type: "error", text: "Total Questions must be at least 1." });
                         }
-                        if (newDuration <= 0) return setAssessmentFeedback({ type: "error", text: "Duration must be greater than zero." });
-                        if (newAllowedAttempts < 1) return setAssessmentFeedback({ type: "error", text: "Maximum Allowed Attempts must be at least 1." });
-                        if (!newOpenAt || !newCloseAt || new Date(newCloseAt) <= new Date(newOpenAt)) return setAssessmentFeedback({ type: "error", text: "End Schedule must be later than Start Schedule." });
+                        if (bankQuestions.length > 0 && parsedTotalQ > bankQuestions.length) {
+                          return setAssessmentFeedback({ type: "error", text: `Total Questions (${parsedTotalQ}) cannot exceed available questions in bank (${bankQuestions.length}).` });
+                        }
+                        if (parsedDuration <= 0) {
+                          return setAssessmentFeedback({ type: "error", text: "Duration must be greater than zero." });
+                        }
+                        if (parsedPassing > effectiveTotalMarks) {
+                          return setAssessmentFeedback({ type: "error", text: `Passing Marks (${parsedPassing}) cannot exceed Total Marks (${effectiveTotalMarks}).` });
+                        }
+                        if (parsedAttempts < 1) {
+                          return setAssessmentFeedback({ type: "error", text: "Maximum Allowed Attempts must be at least 1." });
+                        }
+                        if (!newOpenAt || !newCloseAt || new Date(newCloseAt) <= new Date(newOpenAt)) {
+                          return setAssessmentFeedback({ type: "error", text: "End Schedule must be later than Start Schedule." });
+                        }
                       }
-                      if (wizardStep === 3 && wizardSelectedBankQuestions.length !== newTotalQuestions) {
-                        return setAssessmentFeedback({ type: "error", text: `Select exactly ${newTotalQuestions} questions before continuing.` });
+                      if (wizardStep === 3) {
+                        const parsedTotalQ = Number(newTotalQuestions) || 0;
+                        if (bankQuestions.length > 0 && wizardSelectedBankQuestions.length !== parsedTotalQ) {
+                          return setAssessmentFeedback({ type: "error", text: `Select exactly ${parsedTotalQ} question${parsedTotalQ === 1 ? '' : 's'} before continuing (currently ${wizardSelectedBankQuestions.length} selected).` });
+                        }
                       }
                       setAssessmentFeedback(null);
                       setWizardStep(wizardStep + 1);
